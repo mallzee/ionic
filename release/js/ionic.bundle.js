@@ -41168,6 +41168,61 @@ function($rootScope, $state, $location, $document, $ionicPlatform, $ionicHistory
  * @returns {integer}
  */
 
+/**
+ * @ngdoc method
+ * @name $ionicConfigProvider#navBar.alignTitle
+ * @description Which side of the navBar to align the title. Default `center`.
+ *
+ * @param {string} value side of the navBar to align the title.
+ *
+ * * `platform`: Dynamically choose the correct title style depending on the platform
+ * the app is running from. If the platform is `ios`, it will default to `center`.
+ * If the platform is `android`, it will default to `left`. If the platform is not
+ * `ios` or `android`, it will default to `center`.
+ *
+ * * `left`: Left align the title in the navBar
+ * * `center`: Center align the title in the navBar
+ * * `right`: Right align the title in the navBar.
+ *
+ * @returns {string} value
+ */
+
+/**
+  * @ngdoc method
+  * @name $ionicConfigProvider#navBar.positionPrimaryButtons
+  * @description Which side of the navBar to align the primary navBar buttons. Default `left`.
+  *
+  * @param {string} value side of the navBar to align the primary navBar buttons.
+  *
+  * * `platform`: Dynamically choose the correct title style depending on the platform
+  * the app is running from. If the platform is `ios`, it will default to `left`.
+  * If the platform is `android`, it will default to `right`. If the platform is not
+  * `ios` or `android`, it will default to `left`.
+  *
+  * * `left`: Left align the primary navBar buttons in the navBar
+  * * `right`: Right align the primary navBar buttons in the navBar.
+  *
+  * @returns {string} value
+  */
+
+/**
+ * @ngdoc method
+ * @name $ionicConfigProvider#navBar.positionSecondaryButtons
+ * @description Which side of the navBar to align the secondary navBar buttons. Default `right`.
+ *
+ * @param {string} value side of the navBar to align the secondary navBar buttons.
+ *
+ * * `platform`: Dynamically choose the correct title style depending on the platform
+ * the app is running from. If the platform is `ios`, it will default to `right`.
+ * If the platform is `android`, it will default to `right`. If the platform is not
+ * `ios` or `android`, it will default to `right`.
+ *
+ * * `left`: Left align the secondary navBar buttons in the navBar
+ * * `right`: Right align the secondary navBar buttons in the navBar.
+ *
+ * @returns {string} value
+ */
+
 IonicModule
 .provider('$ionicConfig', function() {
 
@@ -43796,7 +43851,7 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
     return locals && locals.$$state && locals.$$state.self || {};
   }
 
-  function getTransitionData(viewLocals, enteringEle, direction, enteringView, showBack) {
+  function getTransitionData(viewLocals, enteringEle, direction, showBack, view) {
     // Priority
     // 1) attribute directive on the button/link to this view
     // 2) entering element's attribute
@@ -43806,21 +43861,24 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
     // 6) fallback value
 
     var state = viewState(viewLocals);
-    enteringView = enteringView || {};
-
     var transition = nextTransition || cachedAttr(enteringEle, 'view-transition') || state.viewTransition || $ionicConfig.views.transition() || 'ios';
     direction = nextDirection || cachedAttr(enteringEle, 'view-direction') || state.viewDirection || direction || 'none';
-    var shouldAnimate = (transition !== 'none' && direction !== 'none');
 
-    return {
+    return extend(getViewData(view), {
       transition: transition,
       direction: direction,
-      shouldAnimate: shouldAnimate,
-      viewId: enteringView.viewId,
-      stateId: enteringView.stateId,
-      stateName: enteringView.stateName,
-      stateParams: enteringView.stateParams,
+      shouldAnimate: (transition !== 'none' && direction !== 'none'),
       showBack: !!showBack
+    });
+  }
+
+  function getViewData(view) {
+    view = view || {};
+    return {
+      viewId: view.viewId,
+      stateId: view.stateId,
+      stateName: view.stateName,
+      stateParams: view.stateParams
     };
   }
 
@@ -43845,7 +43903,7 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
 
   var ionicViewSwitcher = {
 
-    create: function(navViewScope, navViewElement, viewLocals, enteringView) {
+    create: function(navViewScope, navViewElement, viewLocals, enteringView, leavingView) {
       // get a reference to an entering/leaving element if they exist
       // loop through to see if the view is already in the navViewElement
       var enteringEle, leavingEle;
@@ -43944,6 +44002,8 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
 
             // run link with the view's scope
             link(scope);
+
+            scope.$emit('$ionicView.loaded', enteringView);
           }
 
           // update that this view was just accessed
@@ -43953,20 +44013,21 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
         },
 
         transition: function(direction, showBack) {
-          var transData = getTransitionData(viewLocals, enteringEle, direction, enteringView, showBack);
-          transData.transitionId = transitionId;
+          var enteringData = getTransitionData(viewLocals, enteringEle, direction, showBack, enteringView);
+          var leavingData = extend(extend({}, enteringData), getViewData(leavingView));
+          enteringData.transitionId = leavingData.transitionId = transitionId;
 
-          cachedAttr(enteringEle.parent(), 'nav-view-transition', transData.transition);
-          cachedAttr(enteringEle.parent(), 'nav-view-direction', transData.direction);
+          cachedAttr(enteringEle.parent(), 'nav-view-transition', enteringData.transition);
+          cachedAttr(enteringEle.parent(), 'nav-view-direction', enteringData.direction);
 
           // cancel any previous transition complete fallbacks
           $timeout.cancel(enteringEle.data(DATA_FALLBACK_TIMER));
 
-          switcher.emit('before', transData);
+          switcher.emit('before', enteringData, leavingData);
 
           // 1) get the transition ready and see if it'll animate
           var transitionFn = $ionicConfig.transitions.views[$ionicConfig.views.transition()];
-          var viewTransition = transitionFn(enteringEle, leavingEle, direction, transData.shouldAnimate);
+          var viewTransition = transitionFn(enteringEle, leavingEle, direction, enteringData.shouldAnimate);
 
           if (viewTransition.shouldAnimate) {
             // 2) attach transitionend events (and fallback timer)
@@ -43978,7 +44039,7 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
           // 3) stage entering element, opacity 0, no transition duration
           navViewAttr(enteringEle, VIEW_STATUS_STAGED);
 
-          if (transData.direction == 'swap') {
+          if (enteringData.direction == 'swap') {
             historyCursorAttr(enteringEle, HISTORY_ROOT);
           }
 
@@ -44014,13 +44075,13 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
             leavingEle && leavingEle.off(TRANSITIONEND_EVENT, transitionComplete);
             $timeout.cancel(enteringEle.data(DATA_FALLBACK_TIMER));
 
-            switcher.emit('after', transData);
+            switcher.emit('after', enteringData, leavingData);
 
             // 8) fire off that the entire transition has completed
             // only the most recent transition should do cleanup
             if (transitionId === transitionCounter) {
               ionicViewSwitcher.setActiveView(navViewElement);
-              switcher.cleanup(transData);
+              switcher.cleanup(enteringData);
               ionicViewSwitcher.isTransitioning(false);
               $ionicClickBlock.hide();
             }
@@ -44030,21 +44091,27 @@ function($timeout, $compile, $controller, $document, $ionicClickBlock, $ionicCon
             }
 
             // remove any references that could cause memory issues
-            nextTransition = nextDirection = enteringView = enteringEle = leavingEle = null;
+            nextTransition = nextDirection = enteringView = leavingView = enteringEle = leavingEle = null;
           }
 
         },
 
-        emit: function(step, transData) {
+        emit: function(step, enteringData, leavingData) {
           var scope = enteringEle.scope();
           if (scope) {
-            scope.$emit('$ionicView.' + step + 'Enter', transData);
+            scope.$emit('$ionicView.' + step + 'Enter', enteringData);
+            if (step == 'after') {
+              scope.$emit('$ionicView.enter', enteringData);
+            }
           }
 
           if (leavingEle) {
             scope = leavingEle.scope();
             if (scope) {
-              scope.$emit('$ionicView.' + step + 'Leave', transData);
+              scope.$emit('$ionicView.' + step + 'Leave', leavingData);
+              if (step == 'after') {
+                scope.$emit('$ionicView.leave', leavingData);
+              }
             }
           }
         },
@@ -45090,6 +45157,8 @@ function($scope, $element, $attrs, $ionicNavBarDelegate, $ionicHistory, $ionicVi
 
 
   self.register = function(viewLocals) {
+    var leavingView = extend({}, $ionicHistory.currentView());
+
     // register that a view is coming in and get info on how it should transition
     var registerData = $ionicHistory.register($scope, viewLocals);
 
@@ -45097,7 +45166,7 @@ function($scope, $element, $attrs, $ionicNavBarDelegate, $ionicHistory, $ionicVi
     self.update(registerData);
 
     // begin rendering and transitioning
-    self.render(registerData, viewLocals);
+    self.render(registerData, viewLocals, leavingView);
   };
 
 
@@ -45133,12 +45202,12 @@ function($scope, $element, $attrs, $ionicNavBarDelegate, $ionicHistory, $ionicVi
   };
 
 
-  self.render = function(registerData, viewLocals) {
+  self.render = function(registerData, viewLocals, leavingView) {
     var enteringView = $ionicHistory.getViewById(registerData.viewId) || {};
 
     // register the view and figure out where it lives in the various
     // histories and nav stacks, along with how views should enter/leave
-    var switcher = $ionicViewSwitcher.create($scope, $element, viewLocals, enteringView);
+    var switcher = $ionicViewSwitcher.create($scope, $element, viewLocals, enteringView, leavingView);
 
     // init the rendering of views for this navView directive
     switcher.init(registerData, function() {
@@ -45973,7 +46042,7 @@ function(scope, element, $$ionicAttachDrag, $interval) {
   }
 
   function onDragStart() {
-    if (self.dragDisabled) return false;
+    if (self.dragDisabled || self.count() < 2) return false;
   }
 
   // percent is negative 0-1 for backward slide
@@ -50387,18 +50456,26 @@ function($ionicGesture, $timeout) {
  * </ion-nav-view>
  * ```
  *
- * ## Events
+ * ## View LifeCycle and Events
  *
  * Views can be cached which means controllers may only load once, which could change how you'd
- * expected data to load. To know when a view has entered or left, events have been added that
+ * expect controllers to fire. To know when a view has entered or left, events have been added that
  * get emitted from the view's scope. These events also contain data about the view,
  * such as the title and if the back button should show, along with transition data, such as the
  * transition type and direction that will be or was used.
  *
- * * `$ionicView.beforeEnter`
- * * `$ionicView.beforeLeave`
- * * `$ionicView.afterEnter`
- * * `$ionicView.afterLeave`
+ * * `$ionicView.loaded`: The view has loaded. This event only happens once per the scope being created
+ * and view element added to the DOM. If a view leaves and is cached, then a subsequent time it enters
+ * this this event will not fire again, rather it would only fire again if the view was not cached
+ * and accessed again. This is good place to put your setup code for the View.
+ * * `$ionicView.enter`: The view has fully entered and is now the active view. This event will fire
+ * no matter if it was the first load or it was a cached view.
+ * * `$ionicView.leave`: The view has finished leaving and is no longer the active view. This event will
+ * fire no matter if it will be cached or destroyed.
+ * * `$ionicView.beforeEnter`: The view is about to enter and become the active view.
+ * * `$ionicView.beforeLeave`: The view is about to leave and no longer be the active view.
+ * * `$ionicView.afterEnter`: The view has fully entered and is now the active view.
+ * * `$ionicView.afterLeave`: The view has finished leaving and is no longer the active view.
  *
  *## Caching
  *
