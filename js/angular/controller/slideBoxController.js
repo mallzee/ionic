@@ -145,7 +145,7 @@ function(scope, element, $$ionicAttachDrag, $interval) {
   }
 
   function onDragStart() {
-    if (self.dragDisabled) return false;
+    if (self.dragDisabled || self.count() < 2) return false;
   }
 
   // percent is negative 0-1 for backward slide
