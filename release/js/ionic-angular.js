@@ -7000,10 +7000,10 @@ function(scope, element, $$ionicAttachDrag, $interval) {
 
     var delta = self.delta(scope.selectedIndex, newIndex);
 
-    slidesParent.css(
-      ionic.CSS.TRANSITION_DURATION,
-      (transitionDuration || SLIDE_TRANSITION_DURATION) + 'ms'
-    );
+    // slidesParent.css(
+    //   ionic.CSS.TRANSITION_DURATION,
+    //   (transitionDuration || SLIDE_TRANSITION_DURATION) + 'ms'
+    // );
     scope.selectedIndex = newIndex;
 
     if (self.isInRange(scope.selectedIndex) && Math.abs(delta) > 1) {
